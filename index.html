@@ -5,57 +5,102 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Гра Престолів - Локації</title>
     <style>
-        body { font-family: sans-serif; background: #1a1a1a; color: white; text-align: center; margin: 0; padding: 20px; }
-        .scoreboard { display: flex; justify-content: center; gap: 50px; font-size: 28px; margin-bottom: 20px; font-weight: bold; }
-        .blue-score { color: #4dabf7; }
-        .red-score { color: #ff6b6b; }
-        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; max-width: 600px; margin: 0 auto; }
-        @media (min-width: 768px) { .grid { grid-template-columns: repeat(5, 1fr); max-width: 900px; } }
-        .loc-btn { height: 100px; font-size: 18px; font-weight: bold; border: 2px solid #444; border-radius: 10px; cursor: pointer; transition: 0.2s; }
-        .loc-btn.grey { background: #555; color: white; }
-        .loc-btn.blue { background: #1864ab; color: white; border-color: #4dabf7; }
-        .loc-btn.red { background: #e03131; color: white; border-color: #ff6b6b; }
-        .controls { margin-top: 30px; }
-        button.admin { padding: 15px 30px; font-size: 16px; margin: 10px; cursor: pointer; background: #333; color: white; border: 1px solid #777; border-radius: 5px; font-weight: bold;}
-        button.admin:hover { background: #444; }
-        #csv-result { margin-top: 20px; width: 100%; max-width: 800px; height: 300px; background: #222; color: #0f0; padding: 10px; font-family: monospace; display: none; margin-left: auto; margin-right: auto; white-space: pre; overflow-x: auto;}
+        body { font-family: sans-serif; background: #1a1a1a; color: white; text-align: center; margin: 0; padding: 20px; overflow-x: hidden;}
+        h1 { margin-top: 50px; }
         
-        /* Modal */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; }
-        .modal-content { background: #333; padding: 30px; border-radius: 10px; text-align: center; border: 1px solid #555;}
+        /* Гамбургер меню */
+        .menu-icon { font-size: 30px; cursor: pointer; position: absolute; top: 15px; left: 20px; z-index: 1000; background: #333; padding: 5px 15px; border-radius: 5px; }
+        
+        /* Висувна панель адміна */
+        .sidebar {
+            height: 100%; width: 0; position: fixed; z-index: 999; top: 0; left: 0;
+            background-color: #111; overflow-x: hidden; transition: 0.3s; padding-top: 60px;
+            border-right: 2px solid #333;
+        }
+        .sidebar .close-btn { position: absolute; top: 10px; right: 20px; font-size: 36px; cursor: pointer; color: white; text-decoration: none;}
+        
+        .scoreboard { font-size: 24px; font-weight: bold; margin-bottom: 30px; text-align: center;}
+        .blue-score { color: #4dabf7; margin-bottom: 10px;}
+        .red-score { color: #ff6b6b; }
+        
+        .controls { display: flex; flex-direction: column; align-items: center; gap: 15px;}
+        button.admin { width: 80%; padding: 15px; font-size: 16px; cursor: pointer; background: #333; color: white; border: 1px solid #777; border-radius: 5px; font-weight: bold;}
+        button.admin:hover { background: #444; }
+
+        /* Сітка локацій */
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; max-width: 600px; margin: 20px auto; }
+        @media (min-width: 768px) { .grid { grid-template-columns: repeat(5, 1fr); max-width: 1000px; } }
+        
+        /* Кнопки локацій з підготовкою під ФОТО */
+        .loc-btn { 
+            position: relative; height: 120px; border-radius: 10px; cursor: pointer; 
+            border: 2px solid #444; background-size: cover; background-position: center; overflow: hidden;
+            display: flex; justify-content: center; align-items: center; text-shadow: 1px 1px 3px black;
+        }
+        /* Напівпрозорий фільтр, який змінює колір поверх фото */
+        .loc-btn::before {
+            content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; transition: background 0.3s;
+        }
+        .loc-btn.grey::before { background: rgba(85, 85, 85, 0.8); }
+        .loc-btn.blue::before { background: rgba(24, 100, 171, 0.85); border: 2px solid #4dabf7; }
+        .loc-btn.red::before { background: rgba(224, 49, 49, 0.85); border: 2px solid #ff6b6b; }
+        
+        /* Сам текст локації (щоб був поверх фільтра) */
+        .loc-name { position: relative; z-index: 1; font-size: 18px; font-weight: bold; color: white;}
+
+        /* Модалки (виринаючі вікна) */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; z-index: 2000;}
+        .modal-content { background: #222; padding: 25px; border-radius: 10px; text-align: center; border: 1px solid #555; max-width: 90%; max-height: 90vh; display: flex; flex-direction: column;}
         .team-btn { padding: 15px 30px; font-size: 18px; margin: 10px; cursor: pointer; border: none; border-radius: 5px; color: white; font-weight: bold;}
         .btn-blue { background: #1864ab; }
         .btn-red { background: #e03131; }
+        
+        /* Поле для результатів CSV */
+        #csv-result { width: 100%; height: 300px; background: #111; color: #69db7c; padding: 10px; font-family: monospace; white-space: pre; overflow-x: auto; margin-top: 15px;}
     </style>
 </head>
 <body>
+    <div class="menu-icon" onclick="toggleSidebar()">☰</div>
+
+    <!-- Висувне адмін-меню -->
+    <div id="sidebar" class="sidebar">
+        <a href="javascript:void(0)" class="close-btn" onclick="toggleSidebar()">&times;</a>
+        
+        <div class="scoreboard">
+            <div class="blue-score">Сині: <span id="score-blue">0</span></div>
+            <div class="red-score">Червоні: <span id="score-red">0</span></div>
+        </div>
+
+        <div class="controls">
+            <button class="admin" onclick="sendAction('start')">▶ Почати гру</button>
+            <button class="admin" onclick="sendAction('end')">⏹ Закінчити гру</button>
+            <button class="admin" onclick="sendAction('ping')">📡 Статус (Ping)</button>
+        </div>
+    </div>
+
     <h1>Війна за Царства</h1>
     <h2 id="status">Гра не почалася</h2>
-    
-    <div class="scoreboard">
-        <div class="blue-score">Сині: <span id="score-blue">0</span></div>
-        <div class="red-score">Червоні: <span id="score-red">0</span></div>
-    </div>
 
-    <div class="grid" id="locations-grid">
-        <!-- Кнопки генеруються через JS -->
-    </div>
+    <div class="grid" id="locations-grid"></div>
 
-    <div class="controls">
-        <button class="admin" onclick="sendAction('start')">▶ Почати гру</button>
-        <button class="admin" onclick="sendAction('end')">⏹ Закінчити гру (CSV)</button>
-    </div>
-
-    <textarea id="csv-result" readonly></textarea>
-
-    <!-- Вікно для першого захоплення (сірої локації) -->
+    <!-- Модалка вибору команди для сірої локації -->
     <div id="capture-modal" class="modal">
         <div class="modal-content">
-            <h3>Хто захопив локацію?</h3>
-            <button class="team-btn btn-blue" onclick="captureGrey('blue')">Сині</button>
-            <button class="team-btn btn-red" onclick="captureGrey('red')">Червоні</button>
-            <br><br>
-            <button onclick="closeModal()" style="padding:10px 20px; margin-top: 15px; cursor:pointer;">Скасувати</button>
+            <h3 id="capture-title">Хто захопив локацію?</h3>
+            <div>
+                <button class="team-btn btn-blue" onclick="captureGrey('blue')">Сині</button>
+                <button class="team-btn btn-red" onclick="captureGrey('red')">Червоні</button>
+            </div>
+            <button onclick="closeModal('capture-modal')" style="padding:10px 20px; margin-top: 20px; cursor:pointer;">Скасувати</button>
+        </div>
+    </div>
+
+    <!-- Модалка для результатів гри (CSV) -->
+    <div id="results-modal" class="modal">
+        <div class="modal-content" style="width: 600px;">
+            <h3>Результати гри</h3>
+            <textarea id="csv-result" readonly></textarea>
+            <button onclick="closeModal('results-modal')" style="padding:10px 20px; margin-top: 15px; cursor:pointer;">Закрити</button>
         </div>
     </div>
 
@@ -63,6 +108,11 @@
         let ws;
         let gameState = { active: false, locations: {} };
         let selectedLocId = null;
+
+        function toggleSidebar() {
+            const sb = document.getElementById("sidebar");
+            sb.style.width = sb.style.width === "250px" ? "0" : "250px";
+        }
 
         function initWS() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -72,15 +122,18 @@
                 const msg = JSON.parse(event.data);
                 if (msg.type === 'state') {
                     gameState = msg.data;
-                    document.getElementById('csv-result').style.display = 'none';
                     updateUI();
                 } else if (msg.type === 'end') {
-                    document.getElementById('csv-result').style.display = 'block';
                     document.getElementById('csv-result').value = msg.csv;
+                    document.getElementById('results-modal').style.display = 'flex';
+                } else if (msg.type === 'pong') {
+                    // Блимання статусу, щоб показати, що сервер живий
+                    const st = document.getElementById('status');
+                    st.style.opacity = 0.5;
+                    setTimeout(() => st.style.opacity = 1, 300);
                 }
             };
             
-            // Авто-реконект при обриві зв'язку (якщо екран телефона згас)
             ws.onclose = () => setTimeout(initWS, 2000); 
         }
 
@@ -95,29 +148,38 @@
             grid.innerHTML = '';
             for (let i = 1; i <= 10; i++) {
                 const loc = gameState.locations[i];
-                const btn = document.createElement('button');
+                const btn = document.createElement('div');
                 btn.className = `loc-btn ${loc.color}`;
-                btn.innerText = `Локація ${i}`;
-                btn.onclick = () => handleLocClick(i, loc.color);
+                
+                // ТУТ В МАЙБУТНЬОМУ МОЖНА ДОДАТИ ФОТО:
+                // btn.style.backgroundImage = `url('images/loc_${i}.jpg')`;
+                
+                btn.onclick = () => handleLocClick(i, loc.color, loc.name);
+                
+                const span = document.createElement('span');
+                span.className = 'loc-name';
+                span.innerText = loc.name;
+                
+                btn.appendChild(span);
                 grid.appendChild(btn);
             }
         }
 
-        function handleLocClick(id, color) {
+        function handleLocClick(id, color, locName) {
             if (!gameState.active) {
-                alert("Спочатку почніть гру (кнопка внизу)!");
+                alert("Спочатку почніть гру (Меню ☰ -> Почати гру)!");
                 return;
             }
             
             if (color === 'grey') {
                 selectedLocId = id;
+                document.getElementById('capture-title').innerText = `Хто захопив ${locName}?`;
                 document.getElementById('capture-modal').style.display = 'flex';
             } else {
                 const newTeam = color === 'blue' ? 'red' : 'blue';
-                const newTeamName = newTeam === 'blue' ? 'Синій' : 'Червоний';
+                const newTeamName = newTeam === 'blue' ? 'синій' : 'червоний';
                 
-                // Захист "від дурака" (перезахоплення)
-                if (confirm(`Чи справді хочете перефарбувати локацію в ${newTeamName} колір?`)) {
+                if (confirm(`Чи справді хочете перефарбувати ${locName} в ${newTeamName} колір?`)) {
                     ws.send(JSON.stringify({ action: 'capture', loc_id: id, team: newTeam }));
                 }
             }
@@ -125,18 +187,20 @@
 
         function captureGrey(team) {
             ws.send(JSON.stringify({ action: 'capture', loc_id: selectedLocId, team: team }));
-            closeModal();
+            closeModal('capture-modal');
         }
 
-        function closeModal() {
-            document.getElementById('capture-modal').style.display = 'none';
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
             selectedLocId = null;
         }
 
         function sendAction(action) {
-            if (action === 'start' && !confirm("Почати нову гру? Бали та таблиці будуть обнулені!")) return;
+            if (action === 'start' && !confirm("Почати нову гру? Бали та історія будуть обнулені!")) return;
             if (action === 'end' && !confirm("Закінчити гру і згенерувати фінальні результати?")) return;
+            
             ws.send(JSON.stringify({ action: action }));
+            if (action !== 'ping') toggleSidebar(); // Закрити меню після дії
         }
 
         initWS();
