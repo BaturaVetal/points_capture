@@ -3,18 +3,32 @@ import datetime
 import os
 from aiohttp import web
 
+# ТУТ МОЖНА ЗМІНИТИ НАЗВИ ЛОКАЦІЙ
+LOC_NAMES = {
+    "1": "Вінтерфелл",
+    "2": "Королівська Гавань",
+    "3": "Драконів Камінь",
+    "4": "Ріверран",
+    "5": "Орлине Гніздо",
+    "6": "Пайк",
+    "7": "Скеля Кастерлі",
+    "8": "Хайгарден",
+    "9": "Штормова Межа",
+    "10": "Дорн"
+}
 
-# Стан гри
+def get_initial_locations():
+    return {str(i): {"name": LOC_NAMES[str(i)], "color": "grey", "history": []} for i in range(1, 11)}
+
 game_state = {
     "active": False,
-    "locations": {str(i): {"color": "grey", "history": []} for i in range(1, 11)},
+    "locations": get_initial_locations(),
     "scores": {"blue": 0, "red": 0},
     "loc_scores": {str(i): {"blue": 0, "red": 0} for i in range(1, 11)}
 }
 clients = set()
 
 async def broadcast_state():
-    """Надсилає оновлений стан всім підключеним клієнтам"""
     msg = json.dumps({"type": "state", "data": game_state})
     for ws in clients:
         await ws.send_str(msg)
@@ -24,7 +38,6 @@ async def websocket_handler(request):
     await ws.prepare(request)
     clients.add(ws)
     
-    # При підключенні відправляємо поточний стан
     await ws.send_str(json.dumps({"type": "state", "data": game_state}))
 
     async for msg in ws:
@@ -32,10 +45,13 @@ async def websocket_handler(request):
             data = json.loads(msg.data)
             action = data.get("action")
             
-            if action == "start":
+            if action == "ping":
+                # Просто розсилаємо стан, щоб підтримати активність
+                await ws.send_str(json.dumps({"type": "pong"}))
+                
+            elif action == "start":
                 game_state["active"] = True
-                # Скидаємо гру до початкового стану
-                game_state["locations"] = {str(i): {"color": "grey", "history": []} for i in range(1, 11)}
+                game_state["locations"] = get_initial_locations()
                 game_state["scores"] = {"blue": 0, "red": 0}
                 game_state["loc_scores"] = {str(i): {"blue": 0, "red": 0} for i in range(1, 11)}
                 await broadcast_state()
@@ -43,26 +59,26 @@ async def websocket_handler(request):
             elif action == "end":
                 game_state["active"] = False
                 
-                # Формуємо CSV згідно з вимогами
+                # Формуємо CSV з реальними назвами
                 csv_lines = ["Локація,Історія захоплень (Час - Команда)"]
                 for i in range(1, 11):
-                    hist = game_state["locations"][str(i)]["history"]
-                    hist_str = "; ".join([f"{h['time']} - {h['team']}" for h in hist])
-                    csv_lines.append(f"Локація {i},{hist_str}")
+                    loc_data = game_state["locations"][str(i)]
+                    hist_str = "; ".join([f"{h['time']} - {h['team']}" for h in loc_data['history']])
+                    csv_lines.append(f"{loc_data['name']},{hist_str}")
                 
                 csv_lines.append("\nЛокація,Бали Синіх,Бали Червоних")
                 for i in range(1, 11):
+                    loc_name = game_state["locations"][str(i)]["name"]
                     ls = game_state["loc_scores"][str(i)]
-                    csv_lines.append(f"Локація {i},{ls['blue']},{ls['red']}")
+                    csv_lines.append(f"{loc_name},{ls['blue']},{ls['red']}")
                     
                 csv_lines.append(f"\nЗАГАЛЬНА КІЛЬКІСТЬ БАЛІВ,{game_state['scores']['blue']},{game_state['scores']['red']}")
                 csv_data = "\n".join(csv_lines)
                 
-                # Відправляємо результати всім
+                # Відправляємо результати
                 for client in clients:
                     await client.send_str(json.dumps({"type": "end", "csv": csv_data}))
                 
-                # Робимо локації сірими
                 for i in range(1, 11):
                     game_state["locations"][str(i)]["color"] = "grey"
                 await broadcast_state()
@@ -72,13 +88,12 @@ async def websocket_handler(request):
                     continue
                     
                 loc_id = str(data["loc_id"])
-                new_team = data["team"] # "blue" або "red"
+                new_team = data["team"]
                 current_color = game_state["locations"][loc_id]["color"]
                 
                 if current_color == new_team:
                     continue
                     
-                # 1 бал за сіру, 2 бали за перезахоплення
                 points = 1 if current_color == "grey" else 2
                 game_state["scores"][new_team] += points
                 game_state["loc_scores"][loc_id][new_team] += points
@@ -102,7 +117,6 @@ app = web.Application()
 app.add_routes([web.get('/', index), web.get('/ws', websocket_handler)])
 
 if __name__ == '__main__':
-    # Render автоматично передає порт через змінну оточення
     port = int(os.environ.get("PORT", 8080))
     print(f"Сервер запускається на порту {port}")
     web.run_app(app, host='0.0.0.0', port=port)
