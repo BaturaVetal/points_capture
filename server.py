@@ -1,9 +1,9 @@
 import json
 import datetime
 import os
+import time
 from aiohttp import web
 
-# ТУТ МОЖНА ЗМІНИТИ НАЗВИ ЛОКАЦІЙ
 LOC_NAMES = {
     "1": "Вінтерфелл",
     "2": "Королівська Гавань",
@@ -18,7 +18,14 @@ LOC_NAMES = {
 }
 
 def get_initial_locations():
-    return {str(i): {"name": LOC_NAMES[str(i)], "color": "grey", "history": []} for i in range(1, 11)}
+    return {
+        str(i): {
+            "name": LOC_NAMES[str(i)], 
+            "color": "grey", 
+            "history": [], 
+            "locked_until": 0  # Час, до якого діє башта
+        } for i in range(1, 11)
+    }
 
 game_state = {
     "active": False,
@@ -29,16 +36,27 @@ game_state = {
 clients = set()
 
 async def broadcast_state():
-    msg = json.dumps({"type": "state", "data": game_state})
+    msg = json.dumps({
+        "type": "state", 
+        "data": game_state,
+        "server_time": time.time()  # Передаємо час сервера для точних таймерів
+    })
     for ws in clients:
-        await ws.send_str(msg)
+        try:
+            await ws.send_str(msg)
+        except:
+            pass
 
 async def websocket_handler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
     clients.add(ws)
     
-    await ws.send_str(json.dumps({"type": "state", "data": game_state}))
+    await ws.send_str(json.dumps({
+        "type": "state", 
+        "data": game_state,
+        "server_time": time.time()
+    }))
 
     async for msg in ws:
         if msg.type == web.WSMsgType.TEXT:
@@ -46,7 +64,6 @@ async def websocket_handler(request):
             action = data.get("action")
             
             if action == "ping":
-                # Просто розсилаємо стан, щоб підтримати активність
                 await ws.send_str(json.dumps({"type": "pong"}))
                 
             elif action == "start":
@@ -59,7 +76,7 @@ async def websocket_handler(request):
             elif action == "end":
                 game_state["active"] = False
                 
-                # Формуємо CSV з реальними назвами
+                # Формуємо CSV структуру для файлу
                 csv_lines = ["Локація,Історія захоплень (Час - Команда)"]
                 for i in range(1, 11):
                     loc_data = game_state["locations"][str(i)]
@@ -75,35 +92,64 @@ async def websocket_handler(request):
                 csv_lines.append(f"\nЗАГАЛЬНА КІЛЬКІСТЬ БАЛІВ,{game_state['scores']['blue']},{game_state['scores']['red']}")
                 csv_data = "\n".join(csv_lines)
                 
-                # Відправляємо результати
+                # Відправляємо результати і фінальний стан для красивої таблиці
+                final_msg = json.dumps({
+                    "type": "end", 
+                    "csv": csv_data, 
+                    "final_state": game_state
+                })
                 for client in clients:
-                    await client.send_str(json.dumps({"type": "end", "csv": csv_data}))
+                    try:
+                        await client.send_str(final_msg)
+                    except:
+                        pass
                 
+                # Скидаємо кольори
                 for i in range(1, 11):
                     game_state["locations"][str(i)]["color"] = "grey"
+                    game_state["locations"][str(i)]["locked_until"] = 0
                 await broadcast_state()
                 
-            elif action == "capture":
+            elif action in ["capture", "tower_capture"]:
                 if not game_state["active"]:
                     continue
                     
                 loc_id = str(data["loc_id"])
                 new_team = data["team"]
-                current_color = game_state["locations"][loc_id]["color"]
+                loc_data = game_state["locations"][loc_id]
+                current_color = loc_data["color"]
                 
-                if current_color == new_team:
+                # Перевірка, чи не заблокована локація баштою
+                if loc_data["locked_until"] > time.time():
                     continue
-                    
-                points = 1 if current_color == "grey" else 2
-                game_state["scores"][new_team] += points
-                game_state["loc_scores"][loc_id][new_team] += points
-                game_state["locations"][loc_id]["color"] = new_team
                 
-                now = datetime.datetime.now().strftime("%H:%M:%S")
-                game_state["locations"][loc_id]["history"].append({
-                    "team": "Сині" if new_team == "blue" else "Червоні",
-                    "time": now
-                })
+                team_name = "Сині" if new_team == "blue" else "Червоні"
+                is_tower = (action == "tower_capture")
+                
+                # Якщо ставлять башту, вона діє 5 хвилин (300 секунд)
+                if is_tower:
+                    loc_data["locked_until"] = time.time() + 300
+                    team_name = f"🗼 {team_name} (Башта)"
+
+                # Якщо колір змінився, даємо бали
+                if current_color != new_team:
+                    points = 1 if current_color == "grey" else 2
+                    game_state["scores"][new_team] += points
+                    game_state["loc_scores"][loc_id][new_team] += points
+                    loc_data["color"] = new_team
+                    
+                    now = datetime.datetime.now().strftime("%H:%M:%S")
+                    loc_data["history"].append({
+                        "team": team_name,
+                        "time": now
+                    })
+                elif is_tower:
+                    # Якщо колір той самий, але купили башту для захисту, просто записуємо історію без балів
+                    now = datetime.datetime.now().strftime("%H:%M:%S")
+                    loc_data["history"].append({
+                        "team": team_name + " - Захист",
+                        "time": now
+                    })
                 
                 await broadcast_state()
                 
