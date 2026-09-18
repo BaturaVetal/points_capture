@@ -1,6 +1,8 @@
 import json
 import datetime
+import os
 from aiohttp import web
+
 
 # Стан гри
 game_state = {
@@ -100,6 +102,7 @@ app = web.Application()
 app.add_routes([web.get('/', index), web.get('/ws', websocket_handler)])
 
 if __name__ == '__main__':
-    # Запуск сервера
-    print("Сервер запущено на http://localhost:8080")
-    web.run_app(app, host='0.0.0.0', port=8080)
+    # Render автоматично передає порт через змінну оточення
+    port = int(os.environ.get("PORT", 8080))
+    print(f"Сервер запускається на порту {port}")
+    web.run_app(app, host='0.0.0.0', port=port)
