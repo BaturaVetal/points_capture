@@ -185,7 +185,7 @@
                 const btn = document.createElement('div');
                 btn.className = `loc-btn ${loc.color}`;
                 
-                // Для фото: btn.style.backgroundImage = `url('images/loc_${i}.jpg')`;
+                btn.style.backgroundImage = `url('images/loc_${i}.jpg')`;
                 
                 btn.onclick = () => handleLocClick(i, loc.color, loc.name);
                 
