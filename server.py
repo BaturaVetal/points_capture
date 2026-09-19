@@ -160,7 +160,11 @@ async def index(request):
     return web.FileResponse('index.html')
 
 app = web.Application()
-app.add_routes([web.get('/', index), web.get('/ws', websocket_handler)])
+app.add_routes([
+    web.get('/', index), 
+    web.get('/ws', websocket_handler),
+    web.static('/images', 'images')  # <--- Ось цей рядок дозволить бачити картинки
+])
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
